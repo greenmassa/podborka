@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ item.text[:60] }} — Podborka{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+<a class="back" href="/items">← Лента</a>
+<article class="detail">
+  <div class="detail-head">
+    <span class="badge pl-{{ item.platform }}">{{ PLATFORM_LABELS[item.platform] }}</span>
+    <span class="hint">{{ CONTENT_LABELS[item.content_type] }} · {{ item.author }} · {{ item.published_at | dt }}</span>
+  </div>
+  <h1>{{ item.text }}</h1>
+  <a class="btn" href="{{ item.url }}" target="_blank" rel="noopener">Открыть в {{ PLATFORM_LABELS[item.platform] }} ↗</a>
+
+  {% if sc %}
+  <div class="kpis">
+    <div><b>{{ sc.velocity | num }}</b><span>реакций в час</span></div>
+    <div><b>{{ sc.engagement | pct }}</b><span>вовлечённость</span></div>
+    <div><b>{{ sc.reactions | num }}</b><span>реакций</span></div>
+    <div><b>{{ sc.views | num }}</b><span>просмотров</span></div>
+  </div>
+  {% endif %}
+
+  <h2>Рост реакций</h2>
+  {% if snaps | length > 1 %}
+  <div class="chart"><canvas id="chart" aria-label="График роста реакций"></canvas></div>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const data = {{ chart | tojson }};
+      const css = getComputedStyle(document.documentElement);
+      const c = (v) => css.getPropertyValue(v).trim();
+      const hasViews = data.views.some((v) => v !== null);
+      const datasets = [{
+        label: "Реакции", data: data.reactions, yAxisID: "y",
+        borderColor: c("--accent"), backgroundColor: c("--accent"), tension: 0.3, pointRadius: 3,
+      }];
+      if (hasViews) datasets.push({
+        label: "Просмотры", data: data.views, yAxisID: "y2",
+        borderColor: c("--t3"), backgroundColor: c("--t3"), borderDash: [4, 4], tension: 0.3, pointRadius: 0,
+      });
+      new Chart(document.getElementById("chart"), {
+        type: "line",
+        data: { labels: data.labels, datasets },
+        options: {
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: { legend: { labels: { color: c("--t2"), boxWidth: 12 } } },
+          scales: {
+            x: { ticks: { color: c("--t3"), maxRotation: 0, autoSkip: true }, grid: { display: false } },
+            y: { ticks: { color: c("--t3") }, grid: { color: c("--line") }, title: { display: true, text: "реакции", color: c("--t3") } },
+            y2: { display: hasViews, position: "right", ticks: { color: c("--t3") }, grid: { display: false }, title: { display: true, text: "просмотры", color: c("--t3") } },
+          },
+        },
+      });
+    });
+  </script>
+  {% else %}
+  <p class="empty">График появится после второго сбора.</p>
+  {% endif %}
+
+  <h2>Сборы</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Время</th><th>Просмотры</th><th>Лайки</th><th>Комментарии</th><th>Репосты</th><th>Подписчики</th></tr></thead>
+      <tbody>
+        {% for s in snaps | reverse %}
+        <tr>
+          <td>{{ s.captured_at | dt }}</td>
+          <td>{{ s.views | num }}</td><td>{{ s.likes | num }}</td><td>{{ s.comments | num }}</td>
+          <td>{{ s.shares | num }}</td><td>{{ s.author_followers | num }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</article>
+{% endblock %}

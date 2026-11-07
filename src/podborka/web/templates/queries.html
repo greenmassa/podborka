@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Товары — Podborka{% endblock %}
+{% block content %}
+<h1>Товары</h1>
+
+<form class="panel form" method="post" action="/queries">
+  <h2>{{ 'Изменить «' ~ edit.name ~ '»' if edit else 'Новый товар' }}</h2>
+  {% if edit %}<input type="hidden" name="query_id" value="{{ edit.id }}">{% endif %}
+  <label>Название
+    <input name="name" required value="{{ edit.name if edit else '' }}" placeholder="Например, Stanley Quencher">
+  </label>
+  <label>Ключевые слова <small>через запятую</small>
+    <input name="keywords" value="{{ edit.keywords | join(', ') if edit else '' }}" placeholder="stanley quencher, стэнли">
+  </label>
+  <div class="two">
+    <label>Хэштеги
+      <input name="hashtags" value="{{ edit.hashtags | join(', ') if edit else '' }}" placeholder="#stanleycup">
+    </label>
+    <label>Упоминания аккаунтов
+      <input name="accounts" value="{{ edit.accounts | join(', ') if edit else '' }}" placeholder="@stanley_brand">
+    </label>
+  </div>
+  <fieldset>
+    <legend>Соцсети</legend>
+    <div class="chips">
+      {% for p in Platform %}
+      <label class="chip">
+        <input type="checkbox" name="platforms" value="{{ p }}" {% if not edit or p in edit.platforms %}checked{% endif %}>
+        <span>{{ PLATFORM_LABELS[p] }}</span>
+      </label>
+      {% endfor %}
+    </div>
+  </fieldset>
+  {% if edit %}
+  <label class="check"><input type="checkbox" name="active" {% if edit.active %}checked{% endif %}> Собирать автоматически</label>
+  {% endif %}
+  <div class="actions">
+    <button class="btn primary" type="submit">{{ 'Сохранить' if edit else 'Добавить' }}</button>
+    {% if edit %}<a class="btn" href="/queries">Отмена</a>{% endif %}
+  </div>
+</form>
+
+{% if queries %}
+<div class="list">
+  {% for q in queries %}
+  <div class="row qrow">
+    <span class="row-main">
+      <span class="row-title">{{ q.name }} {% if not q.active %}<span class="muted-tag">пауза</span>{% endif %}</span>
+      <span class="row-meta">
+        {{ (q.keywords + q.hashtags + q.accounts) | join(', ') or 'без ключевых слов' }}
+      </span>
+      <span class="row-meta">
+        {% for p in q.platforms %}<i class="dot pl-{{ p }}"></i>{{ PLATFORM_LABELS[p] }} {% endfor %}
+      </span>
+      <span id="run-{{ q.id }}" class="run-result"></span>
+    </span>
+    <span class="row-actions">
+      <button class="btn primary" hx-post="/queries/{{ q.id }}/run" hx-target="#run-{{ q.id }}" hx-disabled-elt="this">
+        <span class="when-idle">Собрать</span><span class="when-busy">Собираю…</span>
+      </button>
+      <a class="btn" href="/items?query_id={{ q.id }}">Лента</a>
+      <a class="btn" href="/queries/{{ q.id }}/edit">Изменить</a>
+      <form method="post" action="/queries/{{ q.id }}/delete" data-msg="Удалить «{{ q.name }}»?" onsubmit="return confirm(this.dataset.msg)">
+        <button class="btn danger" type="submit">Удалить</button>
+      </form>
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

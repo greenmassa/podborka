@@ -1,0 +1,15 @@
+{# r — RankedItem #}
+<a class="row" href="/items/{{ r.item.id }}">
+  <span class="badge pl-{{ r.item.platform }}">{{ PLATFORM_LABELS[r.item.platform] }}</span>
+  <span class="row-main">
+    <span class="row-title">{{ r.item.text }}</span>
+    <span class="row-meta">
+      {{ r.item.author }} · {{ CONTENT_LABELS[r.item.content_type] }} · {{ r.item.published_at | ago(now) }}    </span>
+  </span>
+  <span class="row-stats">
+    <span class="stat" title="Реакций в час"><b>{{ r.score.velocity | num }}</b><small>/ч</small></span>
+    <span class="stat" title="Вовлечённость"><b>{{ r.score.engagement | pct }}</b><small>ER</small></span>
+    <span class="stat hide-sm" title="Реакции всего"><b>{{ r.score.reactions | num }}</b><small>реакц.</small></span>
+    <span class="stat hide-sm" title="Просмотры"><b>{{ r.score.views | num }}</b><small>просм.</small></span>
+  </span>
+</a>

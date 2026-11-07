@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<section>
+  <div class="section-head">
+    <h1>Товары</h1>
+    <span class="hint">упоминания за 24 ч и рост к предыдущим 24 ч</span>
+  </div>
+  {% if not trends %}
+    <div class="empty">
+      Пока нет ни одного товара. <a href="/queries">Добавьте первый</a> — укажите ключевые слова и хэштеги.
+    </div>
+  {% else %}
+  <div class="cards">
+    {% for t in trends %}
+    <a class="card" href="/items?query_id={{ t.query.id }}">
+      <div class="card-head">
+        <span class="card-title">{{ t.query.name }}</span>
+        {% if t.growth is none %}{% set cls = 'up' if t.mentions_recent else 'flat' %}
+        {% elif t.growth >= 1.1 %}{% set cls = 'up' %}
+        {% elif t.growth <= 0.9 %}{% set cls = 'down' %}
+        {% else %}{% set cls = 'flat' %}{% endif %}
+        <span class="growth {{ cls }}" title="к предыдущим 24 ч">{{ t.growth | growth }}</span>
+      </div>
+      <div class="kpi">
+        <b>{{ t.mentions_recent | num }}</b>
+        <span>{{ plural(t.mentions_recent, 'упоминание', 'упоминания', 'упоминаний') }} за 24 ч</span>
+      </div>
+      <div class="card-meta">
+        Всего {{ t.mentions_total | num }} · {{ t.reactions_total | num }} реакций
+      </div>
+      {% if t.by_platform %}
+      <div class="split" aria-label="По соцсетям">
+        {% for p, n in t.by_platform | dictsort(by='value', reverse=true) %}
+        <span class="split-seg pl-{{ p }}" style="flex: {{ n }}" title="{{ PLATFORM_LABELS[p] }}: {{ n }}"></span>
+        {% endfor %}
+      </div>
+      <div class="legend">
+        {% for p, n in t.by_platform | dictsort(by='value', reverse=true) %}
+        <span><i class="dot pl-{{ p }}"></i>{{ PLATFORM_LABELS[p] }} {{ n }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{% if top %}
+<section>
+  <div class="section-head">
+    <h2>Быстрее всего набирают реакции</h2>
+    <a class="hint" href="/items?sort=velocity">вся лента →</a>
+  </div>
+  <div class="list">
+    {% for r in top %}{% include "_item_row.html" %}{% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

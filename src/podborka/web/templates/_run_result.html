@@ -1,0 +1,5 @@
+<span class="ok">Собрано: {{ res.items }}</span>
+{% for p, err in res.errors.items() %}
+<span class="err">{{ PLATFORM_LABELS[p] }}: {{ err }}</span>
+{% endfor %}
+<a href="/items?query_id={{ query_id }}&period=all">смотреть →</a>

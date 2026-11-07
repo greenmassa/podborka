@@ -1,0 +1,8 @@
+<p class="hint">{{ ranked | length }} {{ plural(ranked | length, 'пост', 'поста', 'постов') }}</p>
+{% if ranked %}
+<div class="list">
+  {% for r in ranked %}{% include "_item_row.html" %}{% endfor %}
+</div>
+{% else %}
+<div class="empty">Ничего не найдено. Попробуйте другой период или соцсеть.</div>
+{% endif %}
