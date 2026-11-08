@@ -1,47 +1,76 @@
 {% extends "base.html" %}
 {% block title %}Лента — Podborka{% endblock %}
+{% macro select(name, label, options, value) %}
+  <label>{{ label }}
+    <select name="{{ name }}">
+      {% for k, v in options.items() %}
+      <option value="{{ k }}" {% if value|string == k|string %}selected{% endif %}>{{ v }}</option>
+      {% endfor %}
+    </select>
+  </label>
+{% endmacro %}
 {% block content %}
 <h1>Лента</h1>
-<form class="filters" hx-get="/items" hx-target="#feed" hx-trigger="change" hx-push-url="true">
-  <label>Товар
-    <select name="query_id">
-      <option value="">Все</option>
-      {% for q in queries %}
-      <option value="{{ q.id }}" {% if f.query_id == q.id|string %}selected{% endif %}>{{ q.name }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <label>Соцсеть
-    <select name="platform">
-      <option value="">Все</option>
+<form class="filters-form" action="/items" hx-get="/items" hx-target="#feed" hx-push-url="true"
+      hx-trigger="change, input changed delay:400ms from:input[name=q], submit">
+  <input class="search" type="search" name="q" value="{{ f.q }}" placeholder="Поиск по тексту: «скидка», «где купить»…" aria-label="Поиск по тексту">
+
+  <div class="filters">
+    <label>Товар
+      <select name="query_id">
+        <option value="">Все</option>
+        {% for q in queries %}
+        <option value="{{ q.id }}" {% if f.query_id == q.id|string %}selected{% endif %}>{{ q.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Категория
+      <select name="category">
+        <option value="">Все</option>
+        {% for c in categories %}
+        <option value="{{ c }}" {% if f.category == c %}selected{% endif %}>{{ c }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {{ select("period", "Опубликовано", PERIOD_LABELS, f.period) }}
+    {{ select("sort", "Сортировка", SORT_LABELS, f.sort) }}
+  </div>
+
+  <fieldset>
+    <legend>Соцсети <small>ничего не выбрано — все</small></legend>
+    <div class="chips">
       {% for p in Platform %}
-      <option value="{{ p }}" {% if f.platform == p %}selected{% endif %}>{{ PLATFORM_LABELS[p] }}</option>
+      <label class="chip pl-{{ p }}">
+        <input type="checkbox" name="platform" value="{{ p }}" {% if p in f.platform %}checked{% endif %}>
+        <span><i class="dot"></i>{{ PLATFORM_LABELS[p] }}</span>
+      </label>
       {% endfor %}
-    </select>
-  </label>
-  <label>Тип
-    <select name="content_type">
-      <option value="">Все</option>
-      {% for c in ContentType %}
-      <option value="{{ c }}" {% if f.content_type == c %}selected{% endif %}>{{ CONTENT_LABELS[c] }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <label>Период
-    <select name="period">
-      {% for k, v in PERIOD_LABELS.items() %}
-      <option value="{{ k }}" {% if f.period == k %}selected{% endif %}>{{ v }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <label>Сортировка
-    <select name="sort">
-      {% for k, v in SORT_LABELS.items() %}
-      <option value="{{ k }}" {% if f.sort == k %}selected{% endif %}>{{ v }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <noscript><button type="submit">Показать</button></noscript>
+    </div>
+  </fieldset>
+
+  <details class="more" {% if extra_active %}open{% endif %}>
+    <summary>Ещё фильтры{% if extra_active %} <span class="count">{{ extra_active }}</span>{% endif %}</summary>
+    <div class="filters">
+      {{ select("content_type", "Формат", {"": "Все", "post": "Посты", "video": "Видео"}, f.content_type) }}
+      {{ select("min_reactions", "Реакций", MIN_REACTIONS, f.min_reactions) }}
+      {{ select("min_views", "Просмотров", MIN_VIEWS, f.min_views) }}
+      {{ select("min_velocity", "Скорость", MIN_VELOCITY, f.min_velocity) }}
+      {{ select("seen", "Найдены впервые", SEEN_LABELS, f.seen) }}
+    </div>
+    <fieldset>
+      <legend>Размер автора</legend>
+      <div class="chips">
+        {% for a, label in AUTHOR_LABELS.items() %}
+        <label class="chip">
+          <input type="checkbox" name="author" value="{{ a }}" {% if a in f.author %}checked{% endif %}>
+          <span>{{ label }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+    <a class="reset" href="/items">Сбросить все фильтры</a>
+  </details>
+  <noscript><button class="btn primary" type="submit">Показать</button></noscript>
 </form>
 <div id="feed">{% include "_feed.html" %}</div>
 {% endblock %}

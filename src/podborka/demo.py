@@ -10,14 +10,27 @@ from podborka.models import Platform, Query
 from podborka.service import run_query
 
 DEMO_QUERIES = [
-    Query(name="Stanley Quencher", keywords=["stanley quencher", "стэнли"],
-          hashtags=["#stanleycup"]),
-    Query(name="Labubu", keywords=["labubu", "лабубу"], hashtags=["#labubu"]),
-    Query(name="Dyson Airwrap", keywords=["dyson airwrap"], hashtags=["#airwrap"],
-          platforms=[Platform.YOUTUBE, Platform.INSTAGRAM, Platform.TIKTOK]),
-    Query(name="Корейский солнцезащитный крем", keywords=["korean sunscreen", "корейский спф"],
-          platforms=[Platform.INSTAGRAM, Platform.TELEGRAM, Platform.TIKTOK]),
-]  # fmt: skip
+    Query(
+        name="Stanley Quencher",
+        category="Дом и кухня",
+        keywords=["stanley quencher", "стэнли"],
+        hashtags=["#stanleycup"],
+    ),
+    Query(name="Labubu", category="Игрушки", keywords=["labubu", "лабубу"], hashtags=["#labubu"]),
+    Query(
+        name="Dyson Airwrap",
+        category="Техника",
+        keywords=["dyson airwrap"],
+        hashtags=["#airwrap"],
+        platforms=[Platform.YOUTUBE, Platform.INSTAGRAM, Platform.TIKTOK],
+    ),
+    Query(
+        name="Корейский солнцезащитный крем",
+        category="Косметика",
+        keywords=["korean sunscreen", "корейский спф"],
+        platforms=[Platform.INSTAGRAM, Platform.TELEGRAM, Platform.TIKTOK],
+    ),
+]
 
 
 def seed(db: Database, now: datetime | None = None, runs: int = 9, step_hours: int = 6) -> None:

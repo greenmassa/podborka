@@ -9,6 +9,10 @@
   <label>Название
     <input name="name" required value="{{ edit.name if edit else '' }}" placeholder="Например, Stanley Quencher">
   </label>
+  <label>Категория <small>например, «Косметика» — по ней фильтруются сводка и лента</small>
+    <input name="category" list="categories" maxlength="60" value="{{ edit.category or '' if edit else '' }}" placeholder="Косметика" autocomplete="off">
+    <datalist id="categories">{% for c in categories %}<option value="{{ c }}">{% endfor %}</datalist>
+  </label>
   <label>Ключевые слова <small>через запятую</small>
     <input name="keywords" value="{{ edit.keywords | join(', ') if edit else '' }}" placeholder="stanley quencher, стэнли">
   </label>
@@ -45,7 +49,7 @@
   {% for q in queries %}
   <div class="row qrow">
     <span class="row-main">
-      <span class="row-title">{{ q.name }} {% if not q.active %}<span class="muted-tag">пауза</span>{% endif %}</span>
+      <span class="row-title">{{ q.name }} {% if q.category %}<span class="muted-tag">{{ q.category }}</span>{% endif %}{% if not q.active %}<span class="muted-tag">пауза</span>{% endif %}</span>
       <span class="row-meta">
         {{ (q.keywords + q.hashtags + q.accounts) | join(', ') or 'без ключевых слов' }}
       </span>

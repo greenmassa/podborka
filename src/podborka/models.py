@@ -20,6 +20,15 @@ class ContentType(StrEnum):
     VIDEO = "video"
 
 
+class AuthorSize(StrEnum):
+    """Размер автора по числу подписчиков."""
+
+    MICRO = "micro"  # до 10 тыс
+    MID = "mid"  # 10–100 тыс
+    MACRO = "macro"  # 100 тыс – 1 млн
+    MEGA = "mega"  # от 1 млн
+
+
 @dataclass
 class Query:
     """Отслеживаемый товар или тема.
@@ -33,6 +42,7 @@ class Query:
     hashtags: list[str] = field(default_factory=list)
     accounts: list[str] = field(default_factory=list)
     platforms: list[Platform] = field(default_factory=lambda: list(Platform))
+    category: str | None = None
     active: bool = True
     id: int | None = None
     created_at: datetime | None = None

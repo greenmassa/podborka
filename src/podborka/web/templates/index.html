@@ -5,7 +5,20 @@
     <h1>Товары</h1>
     <span class="hint">упоминания за 24 ч и рост к предыдущим 24 ч</span>
   </div>
-  {% if not trends %}
+  {% macro link(category, growing) -%}
+    /?{{ {"category": category, "growing": "1" if growing else ""} | urlencode }}
+  {%- endmacro %}
+  <nav class="pills" aria-label="Фильтр по категории">
+    <a class="pill" href="{{ link('', f.growing) }}" {% if not f.category %}aria-current="true"{% endif %}>Все</a>
+    {% for c in categories %}
+    <a class="pill" href="{{ link(c, f.growing) }}" {% if f.category == c %}aria-current="true"{% endif %}>{{ c }}</a>
+    {% endfor %}
+    <a class="pill toggle" href="{{ link(f.category, not f.growing) }}" {% if f.growing %}aria-current="true"{% endif %}
+       title="Упоминаний за сутки хотя бы в 1,5 раза больше, чем за прошлые">↗ Только растущие</a>
+  </nav>
+  {% if not trends and (f.category or f.growing) %}
+    <div class="empty">Под фильтр ничего не подошло. <a href="/">Показать все товары</a></div>
+  {% elif not trends %}
     <div class="empty">
       Пока нет ни одного товара. <a href="/queries">Добавьте первый</a> — укажите ключевые слова и хэштеги.
     </div>
@@ -14,7 +27,8 @@
     {% for t in trends %}
     <a class="card" href="/items?query_id={{ t.query.id }}">
       <div class="card-head">
-        <span class="card-title">{{ t.query.name }}</span>
+        <span class="card-title">{{ t.query.name }}
+          {% if t.query.category %}<small class="card-cat">{{ t.query.category }}</small>{% endif %}</span>
         {% if t.growth is none %}{% set cls = 'up' if t.mentions_recent else 'flat' %}
         {% elif t.growth >= 1.1 %}{% set cls = 'up' %}
         {% elif t.growth <= 0.9 %}{% set cls = 'down' %}
@@ -50,7 +64,7 @@
 <section>
   <div class="section-head">
     <h2>Быстрее всего набирают реакции</h2>
-    <a class="hint" href="/items?sort=velocity">вся лента →</a>
+    <a class="hint" href="/items?sort=velocity{% if f.category %}&category={{ f.category | urlencode }}{% endif %}">вся лента →</a>
   </div>
   <div class="list">
     {% for r in top %}{% include "_item_row.html" %}{% endfor %}

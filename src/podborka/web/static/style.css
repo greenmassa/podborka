@@ -111,6 +111,18 @@ a.hint:hover { color: var(--accent); }
   color: var(--pl); background: color-mix(in srgb, var(--pl) 13%, transparent); white-space: nowrap;
 }
 
+/* фильтры сводки */
+.pills { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
+.pill {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 99px;
+  border: 1px solid var(--line); color: var(--t2); white-space: nowrap; font-size: 14px; background: var(--s1);
+}
+.pill:hover { border-color: var(--t3); }
+.pill[aria-current] { background: var(--t1); color: var(--bg); border-color: var(--t1); }
+.pill.toggle { margin-left: auto; }
+.pill.toggle[aria-current] { background: var(--up); border-color: var(--up); color: #fff; }
+.card-cat { display: block; color: var(--t3); font-weight: 400; font-size: 12px; margin-top: 2px; }
+
 /* строки ленты */
 .list { display: flex; flex-direction: column; background: var(--s1); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
 .row {
@@ -127,6 +139,26 @@ a.row:hover { background: var(--s2); }
 .stat b { font-variant-numeric: tabular-nums; font-weight: 600; }
 .stat small { color: var(--t3); font-size: 11px; }
 
+/* фильтры ленты */
+.filters-form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+.filters-form .filters { margin: 0; }
+.search { width: 100%; }
+.filters-form legend small { color: var(--t3); margin-left: 6px; }
+.chip .dot { display: none; }
+.chip[class*="pl-"] .dot { display: inline-block; }
+.chip input:checked + span .dot { background: var(--accent-ink); }
+.more { background: var(--s1); border: 1px solid var(--line); border-radius: var(--radius); }
+.more summary {
+  cursor: pointer; padding: 12px 16px; min-height: 44px; font-size: 14px; font-weight: 500;
+  list-style: none; display: flex; align-items: center; gap: 8px;
+}
+.more summary::-webkit-details-marker { display: none; }
+.more summary::after { content: "▾"; color: var(--t3); margin-left: auto; transition: transform .15s; }
+.more[open] summary::after { transform: rotate(180deg); }
+.more > .filters, .more > fieldset { padding: 0 16px 14px; }
+.count { background: var(--accent); color: var(--accent-ink); border-radius: 99px; font-size: 12px; padding: 1px 8px; }
+.reset { display: inline-block; color: var(--accent); font-size: 14px; padding: 0 16px 14px; }
+
 /* фильтры и формы */
 .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
 .filters label, .form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--t2); }
@@ -140,10 +172,11 @@ select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: -1
 .form h2 { margin: 0; }
 .form small { color: var(--t3); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-fieldset { border: 0; padding: 0; margin: 0; }
+fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 legend { font-size: 12px; color: var(--t2); margin-bottom: 6px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chip input { position: absolute; opacity: 0; pointer-events: none; }
+.chip { position: relative; }
+.chip input { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 .chip span {
   display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px;
   border: 1px solid var(--line); border-radius: 99px; color: var(--t2); cursor: pointer; font-size: 14px;
@@ -200,7 +233,13 @@ th:first-child, td:first-child { text-align: left; }
   .row > .badge { grid-column: 1 / -1; justify-self: start; font-size: 11px; padding: 2px 6px; }
   .row { gap: 6px 12px; }
   .row-stats { gap: 12px; }
-  .filters label { flex: 1 1 calc(50% - 10px); }
+  .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .filters label { min-width: 0; }
+  .filters select { width: 100%; }
+  .filters-form { gap: 10px; }
+  .filters-form .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+  .filters-form .chip span { white-space: nowrap; }
+  .filters-form legend small { display: none; }
   .two { grid-template-columns: 1fr; }
   .kpis { grid-template-columns: 1fr 1fr; }
   .qrow { grid-template-columns: 1fr; }

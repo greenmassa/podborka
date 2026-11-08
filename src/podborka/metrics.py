@@ -16,11 +16,27 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from podborka.models import Snapshot
+from podborka.models import AuthorSize, Snapshot
 
 # Не делим на очень малый возраст поста: пост минутной давности с 10 лайками
 # не должен получать скорость 600/ч.
 MIN_AGE_HOURS = 0.5
+
+
+AUTHOR_SIZE_LIMITS = [
+    (10_000, AuthorSize.MICRO),
+    (100_000, AuthorSize.MID),
+    (1_000_000, AuthorSize.MACRO),
+]
+
+
+def author_size(followers: int | None) -> AuthorSize | None:
+    if followers is None:
+        return None
+    for limit, size in AUTHOR_SIZE_LIMITS:
+        if followers < limit:
+            return size
+    return AuthorSize.MEGA
 
 
 def engagement_rate(snapshot: Snapshot) -> float | None:
@@ -73,6 +89,7 @@ class ItemScore:
     views: int | None
     engagement: float | None
     velocity: float | None
+    author_size: AuthorSize | None = None
 
 
 def score(snapshots: Sequence[Snapshot], published_at: datetime) -> ItemScore | None:
@@ -84,4 +101,5 @@ def score(snapshots: Sequence[Snapshot], published_at: datetime) -> ItemScore | 
         views=last.views,
         engagement=engagement_rate(last),
         velocity=velocity(snapshots, published_at),
+        author_size=author_size(last.author_followers),
     )

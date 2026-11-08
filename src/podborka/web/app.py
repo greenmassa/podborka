@@ -13,9 +13,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from podborka.collectors.base import Collector
-from podborka.db import SORT_KEYS, Database
+from podborka.db import SORT_KEYS, Database, ItemFilter
 from podborka.metrics import score
-from podborka.models import ContentType, Platform, Query
+from podborka.models import AuthorSize, ContentType, Platform, Query
 from podborka.service import query_trend, run_query
 from podborka.web import fmt
 
@@ -28,6 +28,8 @@ PERIODS = {
     "all": None,
 }
 PERIOD_LABELS = {"24h": "24 часа", "7d": "7 дней", "30d": "30 дней", "all": "Всё время"}
+SEEN = {"6h": timedelta(hours=6), "24h": timedelta(days=1), "7d": timedelta(days=7)}
+SEEN_LABELS = {"": "Когда угодно", "6h": "За 6 часов", "24h": "За 24 часа", "7d": "За 7 дней"}
 SORT_LABELS = {
     "velocity": "Скорость",
     "engagement": "Вовлечённость",
@@ -35,12 +37,80 @@ SORT_LABELS = {
     "published": "Новые",
 }
 assert SORT_LABELS.keys() == SORT_KEYS.keys()
+AUTHOR_LABELS = {
+    AuthorSize.MICRO: "Микро · до 10 тыс",
+    AuthorSize.MID: "Средние · 10–100 тыс",
+    AuthorSize.MACRO: "Крупные · 100 тыс – 1 млн",
+    AuthorSize.MEGA: "Мега · от 1 млн",
+}
+# Пороги в выпадающих списках: значение → подпись
+MIN_REACTIONS = {0: "Любые", 10: "от 10", 100: "от 100", 1000: "от 1 тыс", 10000: "от 10 тыс"}
+MIN_VIEWS = {0: "Любые", 1000: "от 1 тыс", 10000: "от 10 тыс", 100000: "от 100 тыс"}
+MIN_VELOCITY = {0: "Любая", 1: "от 1/ч", 10: "от 10/ч", 50: "от 50/ч", 200: "от 200/ч"}
+# «Растущий» товар: упоминаний за сутки в 1,5 раза больше, чем за прошлые
+GROWING_RATIO = 1.5
+
+# Фильтры, спрятанные под «Ещё фильтры», — чтобы показать, сколько из них включено
+EXTRA_FILTERS = ("content_type", "author", "min_reactions", "min_views", "min_velocity", "seen")
 
 
 def split_list(raw: str) -> list[str]:
     """«a, b\\nc» → ['a', 'b', 'c']"""
     parts = (p.strip() for line in raw.splitlines() for p in line.split(","))
     return [p for p in parts if p]
+
+
+def _int(value: str | None, allowed: dict[int, str]) -> int:
+    try:
+        v = int(value or 0)
+    except ValueError:
+        return 0
+    return v if v in allowed else 0
+
+
+def parse_feed_params(params, now: datetime) -> tuple[ItemFilter, str, dict]:
+    """Query-string → (фильтр, сортировка, значения для формы). Мусор игнорируется."""
+    query_id = params.get("query_id", "")
+    category = params.get("category", "").strip()
+    platforms = [p for p in params.getlist("platform") if p in Platform]
+    content_type = params.get("content_type", "")
+    content_type = content_type if content_type in ContentType else ""
+    authors = [a for a in params.getlist("author") if a in AuthorSize]
+    period = params.get("period", "7d")
+    period = period if period in PERIODS else "7d"
+    seen = params.get("seen", "")
+    seen = seen if seen in SEEN else ""
+    sort = params.get("sort", "velocity")
+    sort = sort if sort in SORT_KEYS else "velocity"
+    text = params.get("q", "").strip()[:100]
+    form = {
+        "query_id": query_id if query_id.isdigit() else "",
+        "category": category,
+        "platform": platforms,
+        "content_type": content_type,
+        "author": authors,
+        "period": period,
+        "seen": seen,
+        "sort": sort,
+        "q": text,
+        "min_reactions": _int(params.get("min_reactions"), MIN_REACTIONS),
+        "min_views": _int(params.get("min_views"), MIN_VIEWS),
+        "min_velocity": _int(params.get("min_velocity"), MIN_VELOCITY),
+    }
+    f = ItemFilter(
+        query_id=int(query_id) if query_id.isdigit() else None,
+        category=category or None,
+        platforms=[Platform(p) for p in platforms],
+        content_type=ContentType(content_type) if content_type else None,
+        since=now - PERIODS[period] if PERIODS[period] else None,
+        first_seen_since=now - SEEN[seen] if seen else None,
+        text=text or None,
+        author_sizes=[AuthorSize(a) for a in authors],
+        min_reactions=form["min_reactions"],
+        min_views=form["min_views"],
+        min_velocity=form["min_velocity"],
+    )
+    return f, sort, form
 
 
 def create_app(db: Database, collectors: Sequence[Collector]) -> FastAPI:
@@ -52,7 +122,12 @@ def create_app(db: Database, collectors: Sequence[Collector]) -> FastAPI:
         Platform=Platform,
         ContentType=ContentType,
         PERIOD_LABELS=PERIOD_LABELS,
+        SEEN_LABELS=SEEN_LABELS,
         SORT_LABELS=SORT_LABELS,
+        AUTHOR_LABELS=AUTHOR_LABELS,
+        MIN_REACTIONS=MIN_REACTIONS,
+        MIN_VIEWS=MIN_VIEWS,
+        MIN_VELOCITY=MIN_VELOCITY,
     )
 
     def page(request: Request, name: str, **ctx) -> HTMLResponse:
@@ -67,45 +142,45 @@ def create_app(db: Database, collectors: Sequence[Collector]) -> FastAPI:
     # --- сводка ------------------------------------------------------------
 
     @app.get("/", response_class=HTMLResponse)
-    def index(request: Request):
+    def index(request: Request, category: str = "", growing: str = ""):
         now = datetime.now(UTC)
-        trends = [query_trend(db, q, now=now) for q in db.list_queries()]
+        category = category.strip()
+        queries = [q for q in db.list_queries() if not category or q.category == category]
+        trends = [query_trend(db, q, now=now) for q in queries]
+        if growing:
+            trends = [
+                t
+                for t in trends
+                if (t.growth is None and t.mentions_recent > 0)
+                or (t.growth is not None and t.growth >= GROWING_RATIO)
+            ]
         trends.sort(key=lambda t: (t.mentions_recent, t.growth or 0), reverse=True)
-        top = db.ranked_items(sort="velocity", limit=8, since=now - timedelta(days=7))
-        names = {q.id: q.name for q in db.list_queries()}
-        return page(request, "index.html", trends=trends, top=top, names=names)
+        top = db.ranked_items(
+            ItemFilter(since=now - timedelta(days=7), category=category or None),
+            sort="velocity",
+            limit=8,
+        )
+        return page(
+            request,
+            "index.html",
+            trends=trends,
+            top=top,
+            categories=db.list_categories(),
+            f={"category": category, "growing": bool(growing)},
+        )
 
     # --- лента -------------------------------------------------------------
 
     @app.get("/items", response_class=HTMLResponse)
-    def items(
-        request: Request,
-        query_id: str = "",
-        platform: str = "",
-        content_type: str = "",
-        period: str = "7d",
-        sort: str = "velocity",
-    ):
-        filters = {
-            "query_id": int(query_id) if query_id.isdigit() else None,
-            "platform": Platform(platform) if platform in Platform else None,
-            "content_type": ContentType(content_type) if content_type in ContentType else None,
-        }
-        period = period if period in PERIODS else "7d"
-        sort = sort if sort in SORT_KEYS else "velocity"
-        if PERIODS[period]:
-            filters["since"] = datetime.now(UTC) - PERIODS[period]
-        ranked = db.ranked_items(sort=sort, limit=200, **filters)
+    def items(request: Request):
+        f, sort, form = parse_feed_params(request.query_params, datetime.now(UTC))
+        ranked = db.ranked_items(f, sort=sort, limit=200)
         ctx = {
             "ranked": ranked,
             "queries": db.list_queries(),
-            "f": {
-                "query_id": query_id,
-                "platform": platform,
-                "content_type": content_type,
-                "period": period,
-                "sort": sort,
-            },
+            "categories": db.list_categories(),
+            "f": form,
+            "extra_active": sum(1 for k in EXTRA_FILTERS if form[k]),
         }
         # htmx меняет только ленту при смене фильтра
         if request.headers.get("HX-Request") and request.headers.get("HX-Target") == "feed":
@@ -136,12 +211,22 @@ def create_app(db: Database, collectors: Sequence[Collector]) -> FastAPI:
 
     @app.get("/queries", response_class=HTMLResponse)
     def queries(request: Request):
-        return page(request, "queries.html", queries=db.list_queries(), edit=None)
+        return page(
+            request,
+            "queries.html",
+            queries=db.list_queries(),
+            categories=db.list_categories(),
+            edit=None,
+        )
 
     @app.get("/queries/{query_id}/edit", response_class=HTMLResponse)
     def query_edit(request: Request, query_id: int):
         return page(
-            request, "queries.html", queries=db.list_queries(), edit=get_query_or_404(query_id)
+            request,
+            "queries.html",
+            queries=db.list_queries(),
+            categories=db.list_categories(),
+            edit=get_query_or_404(query_id),
         )
 
     @app.post("/queries")
@@ -150,6 +235,7 @@ def create_app(db: Database, collectors: Sequence[Collector]) -> FastAPI:
         keywords: Annotated[str, Form()] = "",
         hashtags: Annotated[str, Form()] = "",
         accounts: Annotated[str, Form()] = "",
+        category: Annotated[str, Form()] = "",
         platforms: Annotated[list[str] | None, Form()] = None,
         active: Annotated[str | None, Form()] = None,
         query_id: Annotated[int | None, Form()] = None,
@@ -163,6 +249,7 @@ def create_app(db: Database, collectors: Sequence[Collector]) -> FastAPI:
         q.hashtags = [h if h.startswith("#") else f"#{h}" for h in split_list(hashtags)]
         q.accounts = [a if a.startswith("@") else f"@{a}" for a in split_list(accounts)]
         q.platforms = [Platform(p) for p in (platforms or []) if p in Platform]
+        q.category = category.strip()[:60] or None
         q.active = active is not None if query_id else True
         db.save_query(q)
         return RedirectResponse("/queries", status_code=303)

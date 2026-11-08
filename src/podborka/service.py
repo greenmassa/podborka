@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
 from podborka.collectors.base import Collector
-from podborka.db import Database
+from podborka.db import Database, ItemFilter
 from podborka.metrics import mention_growth
 from podborka.models import Platform, Query
 
@@ -61,7 +61,7 @@ def query_trend(
     db: Database, query: Query, now: datetime | None = None, window: timedelta = timedelta(days=1)
 ) -> QueryTrend:
     now = now or datetime.now(UTC)
-    ranked = db.ranked_items(query_id=query.id, limit=10**9)
+    ranked = db.ranked_items(ItemFilter(query_id=query.id), limit=10**9)
     recent, previous, growth = mention_growth(
         (r.item.published_at for r in ranked), now=now, window=window
     )

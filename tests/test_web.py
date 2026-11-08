@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from podborka.collectors.demo import DemoCollector, demo_collectors
-from podborka.db import Database
+from podborka.db import Database, ItemFilter
 from podborka.demo import seed
 from podborka.models import Platform, Query
 from podborka.web.app import create_app, split_list
@@ -35,8 +35,30 @@ def test_feed_filters(client, db):
     q = db.list_queries()[0]
     r = client.get(f"/items?query_id={q.id}&platform=tiktok&period=all&sort=engagement")
     assert r.status_code == 200
-    assert "TikTok" in r.text
-    assert "YouTube</span>" not in r.text
+    assert 'class="badge pl-tiktok"' in r.text
+    assert 'class="badge pl-youtube"' not in r.text
+
+
+def test_feed_new_filters(client, db):
+    r = client.get(
+        "/items?category=Игрушки&platform=tiktok&platform=instagram&author=micro&author=mid"
+        "&min_reactions=10&min_views=0&min_velocity=1&seen=7d&q=labubu&period=all"
+    )
+    assert r.status_code == 200
+    assert "Labubu" in r.text
+    assert "Stanley" not in r.text.split('id="feed"')[1]
+    assert 'class="badge pl-youtube"' not in r.text
+    # включённые «ещё фильтры» раскрывают блок и показывают счётчик
+    assert '<details class="more" open>' in r.text
+    assert 'class="count">4<' in r.text
+
+
+def test_index_category_and_growing(client):
+    r = client.get("/?category=Игрушки")
+    assert "Labubu" in r.text and "Dyson Airwrap</span>" not in r.text
+    r = client.get("/?growing=1")
+    assert r.status_code == 200
+    assert "Только растущие" in r.text
 
 
 def test_feed_htmx_returns_fragment(client):
@@ -46,7 +68,11 @@ def test_feed_htmx_returns_fragment(client):
 
 
 def test_feed_ignores_garbage_params(client):
-    assert client.get("/items?platform=myspace&sort=drop&period=1y&query_id=x").status_code == 200
+    r = client.get(
+        "/items?platform=myspace&sort=drop&period=1y&query_id=x&author=giant"
+        "&min_reactions=abc&min_views=7&seen=forever"
+    )
+    assert r.status_code == 200
 
 
 def test_item_detail(client, db):
@@ -65,6 +91,7 @@ def test_query_crud_and_run(client, db):
             "keywords": "foo, bar\nbaz",
             "hashtags": "tag1, #tag2",
             "accounts": "brand",
+            "category": " Косметика ",
             "platforms": ["x", "tiktok"],
         },
         follow_redirects=False,
@@ -75,10 +102,14 @@ def test_query_crud_and_run(client, db):
     assert q.hashtags == ["#tag1", "#tag2"]
     assert q.accounts == ["@brand"]
     assert q.platforms == [Platform.X, Platform.TIKTOK]
+    assert q.category == "Косметика"
 
     r = client.post(f"/queries/{q.id}/run")
     assert "Собрано" in r.text
-    assert {i.platform for i in db.list_items(query_id=q.id)} <= {Platform.X, Platform.TIKTOK}
+    assert {i.platform for i in db.list_items(ItemFilter(query_id=q.id))} <= {
+        Platform.X,
+        Platform.TIKTOK,
+    }
 
     client.post("/queries", data={"query_id": q.id, "name": "Новое имя", "platforms": ["x"]})
     q2 = db.get_query(q.id)
